@@ -1,145 +1,71 @@
-
-
 var field1Values;
 var field2Values;
+const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+const targetUrl = 'https://api.thingspeak.com/alerts/send';
+
+// Função que faz o fetch para a API
 async function fetchData() {
   try {
-    const response = await fetch('https://api.thingspeak.com/channels/2492075/fields/1.json');
+    const response = await fetch('https://api.thingspeak.com/channels/2688722/feeds/last.json');
     const data = await response.json();
-    field1Values = data.feeds.map(feed => feed.field1);
-    return field1Values;
+    return data;
   } catch (error) {
-    console.error('Erro:', error);
+    console.error('Erro ao buscar dados:', error);
+    return null;
   }
-  
-}
-async function fetchData2() {
-  try {
-    const response = await fetch('https://api.thingspeak.com/channels/2492075/fields/2.json');
-    const data = await response.json();
-    field2Values = data.feeds.map(feed => feed.field2);
-    return field2Values;
-  } catch (error) {
-    console.error('Erro:', error);
-  }
-  
 }
 
-fetchData().then(() => {
-  var soma=0;
-    function calcularModa(array) {
-        var frequencia = {};  // array de frequência
-        var maxFreq = 0;  // guarda a máxima frequência
-        var modas = [];
-      
-        for(var i in array) {
-          frequencia[array[i]] = (frequencia[array[i]] || 0) + 1; // incrementa a frequência
-      
-          if(frequencia[array[i]] > maxFreq) { 
-            maxFreq = frequencia[array[i]];  // atualiza a máxima frequência se necessário
-          }
-        }
-      
-        for(var i in frequencia) {
-          if(frequencia[i] === maxFreq) {
-            modas.push(Number(i));
-          }
-        }
-      
-        return modas;
-      }
-      function calcularDesvioPadrao(array) {
-        let tamanho = array.length;
-    
-    
-        // Calcular a variância
-        let variancia = 0;
-        for(let valor of array) {
-            variancia += Math.pow(valor - media, 2);
-        }
-        variancia = variancia / tamanho;
-    
-        // Calcular o desvio padrão (raiz quadrada da variância)
-        let desvioPadrao = Math.sqrt(variancia);
-    
-        return desvioPadrao;
+// Função que será executada quando houver uma mudança nos dados
+function executeOnChange() {
+  const data = {
+    subject: 'alerta',
+    body: 'alerta executado'
+};
+  postRequest(targetUrl, data)
+    .then(response => console.log('Sucesso:', response))
+    .catch(error => console.error('Falha:', error));
+
+  alert("BOTÃO ACIONADO!!")
+ }
+
+// Função principal que verifica mudanças a cada 30 segundos
+async function monitorChanges() {
+  let lastData = await fetchData(); // Captura o primeiro estado dos dados
+
+  setInterval(async () => {
+    const newData = await fetchData(); // Faz nova requisição
+
+    if (newData && JSON.stringify(newData) !== JSON.stringify(lastData)) {
+      // Se os dados forem diferentes, executa a função e atualiza o estado anterior
+      executeOnChange();
+      lastData = newData;
     }
+  }, 30000); // 30 segundos
+}
 
- 
+// Inicia o monitoramento
+monitorChanges();
 
-    for (let i = 0; i < field1Values.length; i++) {
-        soma += parseFloat(field1Values[i]);
-      }
-  var conta = soma/field1Values.length;
-  var media = parseFloat(conta.toFixed(2));
-  var moda = calcularModa(field1Values);
-  var desvio = parseFloat(calcularDesvioPadrao(field1Values).toFixed(5)); 
-  var desviomin = media-desvio;
-  var desviominok = desviomin.toFixed(2);
-  var desviomax = media+desvio;
-  var desviomaxok = desviomax.toFixed(2);
+async function postRequest(url, data) {
+    try {
+        const response = await fetch(proxyUrl + url, {
+            method: 'POST', // Método da requisição
+            headers: {
+                "Content-Type": "application/json",  // Define o tipo do conteúdo como JSON
+                "ThingSpeak-Alerts-API-Key": "TAKZpzsTyO5tBnJVU6b" // Cabeçalho de autenticação
+            },
+            body: JSON.stringify(data) // Converte o objeto `data` para JSON
+        });
 
-  console.log(desviomin);
-  console.log(desviomax);
-  document.getElementById("media").innerHTML = "<p> <strong>" + media + " ºC </strong> <br> <br> média da temperatura. </p>";
-  document.getElementById("moda").innerHTML = "<p> <strong>" + moda + "</strong> <br> <br> moda da temperatura. </p>";
-  document.getElementById("desvioPadrao").innerHTML = "<p> <strong>" + desvio + "</strong> <br> <br> desvio padrão da temperatura entre: " + desviominok + " e " + desviomaxok + ". </p>";
-})
-fetchData2().then(() => {
-  var soma=0;
-    function calcularModa(array) {
-        var frequencia = {};  // array de frequência
-        var maxFreq = 0;  // guarda a máxima frequência
-        var modas = [];
-      
-        for(var i in array) {
-          frequencia[array[i]] = (frequencia[array[i]] || 0) + 1; // incrementa a frequência
-      
-          if(frequencia[array[i]] > maxFreq) { 
-            maxFreq = frequencia[array[i]];  // atualiza a máxima frequência se necessário
-          }
+        if (!response.ok) {
+            throw new Error(`Erro: ${response.status}`);
         }
-      
-        for(var i in frequencia) {
-          if(frequencia[i] === maxFreq) {
-            modas.push(Number(i));
-          }
-        }
-      
-        return modas;
-      }
-      function calcularDesvioPadrao(array) {
-        let tamanho = array.length;
-    
-    
-        // Calcular a variância
-        let variancia = 0;
-        for(let valor of array) {
-            variancia += Math.pow(valor - media, 2);
-        }
-        variancia = variancia / tamanho;
-    
-        // Calcular o desvio padrão (raiz quadrada da variância)
-        let desvioPadrao = Math.sqrt(variancia);
-    
-        return desvioPadrao;
+
+        const responseData = await response.json(); // Processa a resposta como JSON
+        return responseData; // Retorna a resposta
+    } catch (error) {
+        console.error('Erro na requisição:', error);
+        throw error; // Lança o erro para tratamento posterior
     }
+}
 
- 
-
-    for (let i = 0; i < field2Values.length; i++) {
-        soma += parseFloat(field2Values[i]);
-      }
-      var conta = soma/field2Values.length;
-      var media = parseFloat(conta.toFixed(2));
-      var moda = calcularModa(field2Values);
-      var desvio = parseFloat(calcularDesvioPadrao(field2Values).toFixed(5)); 
-      var desviomin = media-desvio;
-      var desviominok = desviomin.toFixed(2);
-      var desviomax = media+desvio;
-      var desviomaxok = desviomax.toFixed(2);
-      document.getElementById("media2").innerHTML = "<p> <strong>" + media + "</strong> <br> <br> média da umidade. </p>" ;
-      document.getElementById("moda2").innerHTML = "<p> <strong>" + moda + "</strong> <br> <br> moda da umidade. </p>";
-      document.getElementById("desvioPadrao2").innerHTML = "<p> <strong>" + desvio + " </strong> <br> <br> desvio padrão da umidade entre: " + desviominok + " e " + desviomaxok + ". </p>";
-})
-;
